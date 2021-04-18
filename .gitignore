@@ -1,0 +1,10 @@
+*.pyc
+*.pyo
+.kdev4/
+config.py
+
+# VirtualEnv
+bin/
+lib/
+pyvenv.cfg
+
