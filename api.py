@@ -8,7 +8,7 @@ from flask_cors import cross_origin
 from http import HTTPStatus
 
 from config import WALLET_API_ENDPOINT
-from tokens import TokenType, ExistingAddressTokenType, verify_login_token
+from tokens import TokenType, ExistingAddressTokenType, get_token_from_http_header, verify_login_token
 
 
 
@@ -22,14 +22,7 @@ def _json(obj):
 def authenticated(api_func):
     @functools.wraps(api_func)
     def wrapper(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            abort(HTTPStatus.UNAUTHORIZED)
-        auth_header = auth_header.split(' ')
-        if len(auth_header) != 2 or auth_header[0] != 'Bearer':
-            abort(HTTPStatus.UNAUTHORIZED)
-
-        auth_backend, account = verify_login_token(auth_header[1])
+        auth_backend, account = verify_login_token(get_token_from_http_header())
         if account == None:
             abort(HTTPStatus.UNAUTHORIZED)
 
@@ -53,9 +46,9 @@ def login_using_secrethash(type):
 @cross_origin()
 def get_challenge():
     challenge_type = request.args.get('type')
-    if challenge_type not in ExistingAddressTokenType.challenge_types:
+    if challenge_type not in ExistingAddressTokenType.challenge_types():
         abort(HTTPStatus.BAD_REQUEST)
-    challenge, challenge_token = generate_challenge_token(challenge_type, request.args)
+    challenge, challenge_token = ExistingAddressTokenType.generate_challenge_token(challenge_type, request.args)
     return _json({
         'challenge': challenge,
         'authtoken': challenge_token
