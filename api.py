@@ -4,7 +4,7 @@ import requests
 
 from binascii import unhexlify
 from flask import Flask, Response, abort, request
-from flask_cors import cross_origin
+from flask_cors import CORS
 from http import HTTPStatus
 
 from config import WALLET_API_ENDPOINT
@@ -13,6 +13,7 @@ from tokens import TokenType, ExistingAddressTokenType, get_token_from_http_head
 
 
 webapp = Flask('webwallet-api')
+CORS(webapp)
 
 
 def _json(obj):
@@ -32,7 +33,6 @@ def authenticated(api_func):
 
 
 @webapp.route('/login/<type>/', methods=['POST'])
-@cross_origin()
 def login_using_secrethash(type):
     try:
         login_type = TokenType.by_id(type)
@@ -43,7 +43,6 @@ def login_using_secrethash(type):
 
 
 @webapp.route('/challenge/', methods=['GET'])
-@cross_origin()
 def get_challenge():
     challenge_type = request.args.get('type')
     if challenge_type not in ExistingAddressTokenType.challenge_types():
@@ -56,14 +55,12 @@ def get_challenge():
 
 
 @webapp.route('/logininfo/', methods=['GET'])
-@cross_origin()
 @authenticated
 def logininfo(account):
     return _json({ 'method': account[0], 'accountid': account[1] })
 
 
 @webapp.route('/', methods=['POST'])
-@cross_origin()
 @authenticated
 def create_wallet(account):
     request_data = request.get_json() if request.get_json() is not None else {}
@@ -80,7 +77,6 @@ def create_wallet(account):
 
 
 @webapp.route('/', methods=['GET'])
-@cross_origin()
 @authenticated
 def get_wallet_info(account):
     auth_token = TokenType.by_id(account[0]).auth_token
@@ -93,7 +89,6 @@ def get_wallet_info(account):
 
 
 @webapp.route('/**', methods=['GET', 'POST'])
-@cross_origin()
 @authenticated
 def proxy_wallet_api(account):
     auth_token = TokenType.by_id(account[0]).auth_token
