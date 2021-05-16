@@ -76,32 +76,26 @@ def create_wallet(account):
     return Response(resp.content, resp.status_code)
 
 
-@webapp.route('/', methods=['GET'])
+@webapp.route('/', methods=['GET'], defaults={'_': None})
+@webapp.route('/<path:_>', methods=['GET', 'POST', 'PUT'])
 @authenticated
-def get_wallet_info(account):
-    auth_token = TokenType.by_id(account[0]).auth_token
-
-    resp = requests.get(WALLET_API_ENDPOINT + account[1] + '/',
-        headers={'Authorization': 'Bearer ' + auth_token},
-        allow_redirects=False)
-
-    return Response(resp.content, resp.status_code)
-
-
-@webapp.route('/**', methods=['GET', 'POST'])
-@authenticated
-def proxy_wallet_api(account):
+def proxy_wallet_api(account, _):
     auth_token = TokenType.by_id(account[0]).auth_token
 
     # Prevent /account/../../foo/bar shenanigans
-    if '.' in request.url.path:
+    print(request.path)
+    if '.' in request.path:
         abort(HTTPStatus.BAD_REQUEST)
 
-    target = WALLET_API_ENDPOINT + account[1] + request.url.full_path
+    target = WALLET_API_ENDPOINT + account[1] + request.full_path
+    headers = {'Authorization': 'Bearer ' + auth_token}
+    if 'Content-Type' in request.headers:
+        headers['Content-Type'] = request.headers['Content-Type']
+
     resp = requests.request(
         method=request.method,
         url=target,
-        headers={'Content-Type': request.headers['Content-Type'], 'Authorization': 'Bearer ' + auth_token},
+        headers=headers,
         data=request.get_data(),
         allow_redirects=False)
 
