@@ -16,8 +16,38 @@ webapp = Flask('webwallet-api')
 CORS(webapp)
 
 
-def _json(obj):
-    return Response(json.dumps(obj), mimetype='application/json')
+def _json(obj, code=200):
+    return Response(json.dumps(obj), code, mimetype='application/json')
+
+
+def exception_handler(error, code):
+    try:
+        error = error.original_exception
+    except AttributeError: pass
+    return _json({
+        'code': code,
+        'error': {
+            'type': error.__class__.__name__,
+            'message': str(error)
+        }
+    }, code)
+
+@webapp.errorhandler(HTTPStatus.BAD_REQUEST)
+def handle_bad_request(e):
+    return exception_handler(e, HTTPStatus.BAD_REQUEST)
+
+@webapp.errorhandler(HTTPStatus.UNAUTHORIZED)
+def handle_bad_request(e):
+    return exception_handler(e, HTTPStatus.UNAUTHORIZED)
+
+@webapp.errorhandler(HTTPStatus.INTERNAL_SERVER_ERROR)
+def handle_bad_request(e):
+    return exception_handler(e, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+@webapp.errorhandler(HTTPStatus.NOT_FOUND)
+def not_found_handler(_):
+    return _json(None, HTTPStatus.NOT_FOUND)
+
 
 
 def authenticated(api_func):
