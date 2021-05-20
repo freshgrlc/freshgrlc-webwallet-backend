@@ -1,5 +1,5 @@
 #!/bin/sh
 
 . bin/activate
-exec bin/uwsgi --http :8080 --mount /=api:webapp
+exec bin/uwsgi --master --http :8080 --gevent 256 --mount /=api:webapp
 

@@ -1,3 +1,5 @@
+from gevent import monkey; monkey.patch_all()
+
 import functools
 import json
 import requests
@@ -7,6 +9,7 @@ from flask import Flask, Response, abort, request
 from flask_cors import CORS
 from http import HTTPStatus
 
+import ratelimit
 from config import WALLET_API_ENDPOINT
 from tokens import TokenType, ExistingAddressTokenType, get_token_from_http_header, verify_login_token
 
@@ -48,18 +51,26 @@ def internal_server_error_handler(e):
 def not_found_handler(_):
     return _json(None, HTTPStatus.NOT_FOUND)
 
+@webapp.errorhandler(HTTPStatus.TOO_MANY_REQUESTS)
+def too_many_requests_handler(e):
+    return exception_handler(e, HTTPStatus.TOO_MANY_REQUESTS)
 
 
-def authenticated(api_func):
-    @functools.wraps(api_func)
-    def wrapper(*args, **kwargs):
-        auth_backend, account = verify_login_token(get_token_from_http_header())
-        if account == None:
-            abort(HTTPStatus.UNAUTHORIZED)
 
-        kwargs['account'] = (auth_backend, account)
-        return api_func(*args, **kwargs)
-    return wrapper
+def authenticated(rate_limit=ratelimit.Type.DISABLED):
+    def decorator(api_func):
+        @functools.wraps(api_func)
+        def wrapper(*args, **kwargs):
+            auth_backend, account = verify_login_token(get_token_from_http_header())
+            if account == None:
+                abort(HTTPStatus.UNAUTHORIZED)
+
+            kwargs['account'] = (auth_backend, account)
+            response = api_func(*args, **kwargs)
+            ratelimit.check(rate_limit, response)
+            return response
+        return wrapper
+    return decorator
 
 
 @webapp.route('/login/<type>/', methods=['POST'])
@@ -91,7 +102,8 @@ def logininfo(account):
 
 
 @webapp.route('/', methods=['POST'])
-@authenticated
+@ratelimit.apply(['create_wallet', 'abuse'])
+@authenticated(rate_limit=ratelimit.Limit(ratelimit.Type.ALL_REQUESTS, ratelimit.Context('create_wallet', window=24*3600)))
 def create_wallet(account):
     request_data = request.get_json() if request.get_json() is not None else {}
     request_data['user'] = account[1]
@@ -108,7 +120,8 @@ def create_wallet(account):
 
 @webapp.route('/', methods=['GET'], defaults={'_': None})
 @webapp.route('/<path:_>', methods=['GET', 'POST', 'PUT'])
-@authenticated
+@ratelimit.apply('abuse')
+@authenticated(rate_limit=ratelimit.Limit(ratelimit.Type.ON_ERRORS, 'abuse'))
 def proxy_wallet_api(account, _):
     auth_token = TokenType.by_id(account[0]).auth_token
 
