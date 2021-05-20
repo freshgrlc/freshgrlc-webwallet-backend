@@ -113,7 +113,6 @@ def proxy_wallet_api(account, _):
     auth_token = TokenType.by_id(account[0]).auth_token
 
     # Prevent /account/../../foo/bar shenanigans
-    print(request.path)
     if '.' in request.path:
         abort(HTTPStatus.BAD_REQUEST)
 
